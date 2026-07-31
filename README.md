@@ -1,144 +1,134 @@
----
+from curl_cffi import requests
+from lxml import etree
+from urllib.parse import urljoin
+import re
+import json
+import pymysql
 
-# 新华网教育频道新闻爬虫
 
-> 基于 Python 的新华网教育新闻数据采集工具，支持自动抓取、解析和存储新闻内容。
+class XinHuaCrawler:
 
-## 📌 项目简介
+    def __init__(self):
+        self.session = requests.Session(impersonate="chrome120")
+        self.index_url = 'https://education.news.cn/jsxw/index.htm'
+        self.home_url = 'https://education.news.cn/'
+        self.all_detail_url = 'https://education.news.cn/jsxw/ds_77e3127797e049bb8005edd395856264.json'
+        self.referer_url = 'https://education.news.cn/jsxw/index.htm'
+        # self.seen = set()   #v1.0:准备一个集合容器，为去掉重复具体页面网址做准备
+        self.seen = {}        #v2.0:改为字典，之后的具体页面内容即使重复也直接用最新的内容覆盖更新
+        self.config = {
+            'host': 'localhost',
+            'user': 'root',
+            'passwd': 'root',
+            'db': 'xinhua',
+            'port': 3306
+        }
+        self.conn = pymysql.connect(**self.config)
+        self.cursor = self.conn.cursor()
 
-本项目是一个针对**新华网教育频道**（`education.news.cn`）的新闻爬虫系统。通过模拟浏览器请求，自动获取新闻列表和详情页内容，并持久化存储到 MySQL 数据库中。
 
-### 核心功能
-- 自动获取新闻列表页的所有详情链接
-- 模拟真实浏览器请求（`curl_cffi` 指纹伪装）
-- 解析新闻标题、发布日期、来源和正文内容
-- 数据去重更新（重复数据自动覆盖）
-- 数据持久化存储至 MySQL
 
-## 🛠 技术栈
+    def get_index_html(self):
+        try:
+            self.html = self.session.get(self.all_detail_url)
+            status_code = self.html.status_code
+            if status_code == 200:
+                print('请求成功！状态码为：200！')
+            else:
+                print(f"发送请求异常！状态码为{status_code}")
+        except Exception as e:
+            print(f"获取索引页面的html时异常终止！错误信息为：\n{e}")
+        return self.html
 
-| 技术 | 用途 |
-|------|------|
-| Python 3.10+ | 开发语言 |
-| curl_cffi | 模拟浏览器指纹（绕过反爬） |
-| lxml | HTML 解析（XPath 提取数据） |
-| PyMySQL | MySQL 数据库操作 |
-| re | 正文内容清洗 |
 
-## 📁 项目结构
 
-```
-Spider_XinHua/
-├── Xinhua_Spider.py      # 爬虫主程序
-├── README.md             # 项目说明文档
-└── requirements.txt      # 项目依赖（需自行创建）
-```
+    @staticmethod
+    def parse_index_html(unprocessed_index_html):
+        try:
+            data = json.loads(unprocessed_index_html)
+            for item in data.get('datasource', []):
+                detail_url = item.get('publishUrl')
+                if detail_url:
+                    yield detail_url
+        except Exception as e:
+            print(f"解析索引页面时异常终止！错误信息为：\n{e}")
 
-## 🚀 快速开始
+    def combine_urls(self, detail_url):
+        return urljoin(self.home_url, detail_url)
 
-### 1. 克隆项目
 
-```bash
-git clone https://github.com/WuSh-ua/Spider_XinHua.git
-cd Spider_XinHua
-```
 
-### 2. 安装依赖
+    def get_target_html(self, real_url):
+        try:
+            real_html = self.session.get(real_url, headers={'Referer': self.referer_url})
+            status_code = real_html.status_code
+            if status_code == 200:
+                print('详情页面请求成功！状态码为：200！')
+                return real_html.text
+            else:
+                print(f"发送请求异常！状态码为{status_code}")
+        except Exception as e:
+            print(f"获取详细页面时异常终止！错误信息为：\n{e}")
 
-```bash
-pip install curl_cffi lxml pymysql
-```
 
-或使用 requirements.txt：
 
-```bash
-pip install -r requirements.txt
-```
+    def parse_target_html(self, unprocessed_target_html):
+        try:
+            detail_html = etree.HTML(unprocessed_target_html)
+            title = self.clean(detail_html.xpath('//div[@class="mheader domMobile"]//span[@class="title"]/text()'))
+            if not title:
+                print('未提取到标题')
+                return
+            date = self.clean(detail_html.xpath('//div[@class="info"]/text()'))
+            source = self.clean(detail_html.xpath('//div[@class="info"]/span/text()'))
+            chaos_content = detail_html.xpath('//div[@class="main-left left"]/div[@id="detail"]/span[@id="detailContent"]//text()')
+            process_content = ''.join(chaos_content)
+            clean_content = re.sub(r'[\u2002\u2003\u00A0\u202F\u205F\u3000]+', ' ', process_content.strip())
+            self.seen[title] = {
+                'title': title,
+                'date': date,
+                'source': source,
+                'content': clean_content
+            }
+            self.seen[title] = {'title': title, 'date': date, 'source': source, 'content': clean_content}
+        except Exception as e:
+            print(f'解析异常：{e}')
 
-### 3. 配置数据库
+    @staticmethod
+    def clean(lst):
+        return lst[0].strip() if lst else None
 
-在本地 MySQL 中创建数据库和表：
 
-```sql
-CREATE DATABASE xinhua DEFAULT CHARACTER SET utf8mb4;
 
-USE xinhua;
+    def save_data(self):
+        try:
+            for v in self.seen.values():
+                self.cursor.execute(
+                    "INSERT INTO xinhua_news(标题,日期,来源,内容) VALUES (%s,%s,%s,%s) "
+                    "ON DUPLICATE KEY UPDATE 日期=VALUES(日期),来源=VALUES(来源),内容=VALUES(内容)",
+                    (v['title'], v['date'], v['source'], v['content'])
+                )
+            self.conn.commit()
+        except Exception as e:
+            print(f"数据入库时发生异常！\n{e}")
 
-CREATE TABLE xinhua_news (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    标题 VARCHAR(255) UNIQUE,
-    日期 VARCHAR(50),
-    来源 VARCHAR(100),
-    内容 TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
 
-### 4. 修改数据库配置
 
-打开 `Xinhua_Spider.py`，修改 `__init__` 方法中的数据库连接信息：
+    def run(self):
+        try:
+            index_html = self.get_index_html()
+            for url in self.parse_index_html(index_html.text):
+                combine_url = self.combine_urls(url)
+                html_text = self.get_target_html(combine_url)
+                self.parse_target_html(html_text)
+            self.save_data()
+        except Exception as e:
+            print(f"运行程序异常终止！错误信息为：\n{e}")
+        finally:
+            self.cursor.close()
+            self.conn.close()
+            self.session.close()
 
-```python
-self.config = {
-    'host': 'localhost',      # 数据库地址
-    'user': 'root',           # 用户名
-    'passwd': 'root',         # 密码
-    'db': 'xinhua',           # 数据库名
-    'port': 3306              # 端口
-}
-```
 
-### 5. 运行爬虫
-
-```bash
-python Xinhua_Spider.py
-```
-
-## 📊 数据字段说明
-
-| 字段 | 说明 |
-|------|------|
-| 标题 | 新闻标题（作为唯一键，重复自动更新） |
-| 日期 | 新闻发布日期 |
-| 来源 | 新闻来源（如“新华网”） |
-| 内容 | 清洗后的正文内容（去除特殊空白字符） |
-
-## ⚙️ 核心逻辑说明
-
-### 请求伪装
-使用 `curl_cffi` 库模拟 `Chrome 120` 浏览器指纹，有效绕过部分反爬机制。
-
-### 数据去重
-采用 `字典` 结构存储数据，以**标题**为键，最新抓取的内容会自动覆盖旧数据，避免重复入库。
-
-### 内容清洗
-使用正则表达式 `re.sub(r'[\u2002\u2003\u00A0\u202F\u205F\u3000]+', ' ', content)` 去除正文中的各类特殊空白字符。
-
-### 数据库 Upsert
-使用 `INSERT ... ON DUPLICATE KEY UPDATE` 语法，当标题重复时自动更新日期、来源和内容，不产生冗余数据。
-
-## 📝 版本迭代记录
-
-| 版本 | 更新内容 |
-|------|----------|
-| v1.0 | 基础爬虫框架，使用 `set` 去重详情页 URL |
-| v2.0 | 改用 `dict` 存储数据，支持内容覆盖更新 |
-
-## ⚠️ 注意事项
-
-1. **合规使用**：本爬虫仅用于学习和研究目的，请遵守新华网 `robots.txt` 规定，合理控制请求频率。
-2. **反爬升级**：如遇反爬策略升级，可能需要调整 `impersonate` 参数或增加代理轮换。
-3. **数据库编码**：建议使用 `utf8mb4` 编码，避免特殊字符（如 Emoji）入库报错。
-
-## 🤝 贡献
-
-欢迎提交 Issue 或 Pull Request，共同完善本项目。
-
-## 📄 License
-
-本项目仅供学习交流使用，请勿用于商业用途。
-
----
-
-**作者**：WuSh  
-**GitHub**：[WuSh-ua](https://github.com/WuSh-ua)
+if __name__ == "__main__":
+    XinHuaCrawler().run()
