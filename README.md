@@ -1,67 +1,45 @@
-新华网教育频道新闻爬虫
+🕷️ 爬虫项目合集
 
-> 基于 Python 的新华网教育新闻数据采集工具，支持自动抓取、解析和存储新闻内容。
+> 个人爬虫学习与实践项目集合，涵盖新闻资讯、电商图书等多源数据采集。
 
-📌 项目简介
+---
 
-本项目是一个针对**新华网教育频道**（`education.news.cn`）的新闻爬虫系统。通过模拟浏览器请求，自动获取新闻列表和详情页内容，并持久化存储到 MySQL 数据库中。
+ 📁 项目列表
 
-核心功能
-- 自动获取新闻列表页的所有详情链接
-- 模拟真实浏览器请求（`curl_cffi` 指纹伪装）
-- 解析新闻标题、发布日期、来源和正文内容
-- 数据去重更新（重复数据自动覆盖）
-- 数据持久化存储至 MySQL
+| 项目 | 目标网站 | 技术栈 | 核心功能 |
+|------|---------|--------|---------|
+| [新华网教育新闻爬虫](./Xinhua_Spider/) | education.news.cn | Python, curl_cffi, lxml, PyMySQL | 新闻列表获取 → 详情页解析 → 数据去重入库 |
+| [当当网图书爬虫](./Dangdang_Spider/) | search.dangdang.com | Python, requests, BeautifulSoup, PyMySQL | 出版社检索 → 分页抓取 → 图书信息入库 |
 
- 🛠 技术栈
+---
 
-| 技术 | 用途 |
-|------|------|
-| Python 3.10+ | 开发语言 |
-| curl_cffi | 模拟浏览器指纹（绕过反爬） |
-| lxml | HTML 解析（XPath 提取数据） |
-| PyMySQL | MySQL 数据库操作 |
-| re | 正文内容清洗 |
+ 📌 项目一：新华网教育新闻爬虫
 
-📁 项目结构
+目标：采集新华网教育频道的新闻标题、日期、来源、正文内容，存入 MySQL。
 
-```
-Spider_XinHua/
-├── Xinhua_Spider.py      # 爬虫主程序
-├── README.md             # 项目说明文档
-└── requirements.txt      # 项目依赖（需自行创建）
-```
+ 核心实现
 
-🚀 快速开始
+- 反爬绕过：使用 `curl_cffi` 模拟 Chrome 120 浏览器指纹
+- 数据解析：基于 `lxml` 和 XPath 提取结构化数据
+- 数据清洗：正则表达式去除正文中的 Unicode 特殊空白符
+- 去重更新：字典存储 + `INSERT ... ON DUPLICATE KEY UPDATE` 实现增量更新
 
-1. 克隆项目
+ 技术栈
+
+`Python 3.10+` | `curl_cffi` | `lxml` | `PyMySQL` | `re`
+
+ 快速开始
 
 ```bash
-git clone https://github.com/WuSh-ua/Spider_XinHua.git
-cd Spider_XinHua
-```
-
-2. 安装依赖
-
-```bash
+cd Xinhua_Spider
 pip install curl_cffi lxml pymysql
 ```
 
-或使用 requirements.txt：
-
-```bash
-pip install -r requirements.txt
-```
-
-3. 配置数据库
-
-在本地 MySQL 中创建数据库和表：
+执行前需创建数据库表：
 
 ```sql
 CREATE DATABASE xinhua DEFAULT CHARACTER SET utf8mb4;
-
 USE xinhua;
-
 CREATE TABLE xinhua_news (
     id INT AUTO_INCREMENT PRIMARY KEY,
     标题 VARCHAR(255) UNIQUE,
@@ -72,71 +50,120 @@ CREATE TABLE xinhua_news (
 );
 ```
 
-4. 修改数据库配置
-
-打开 `Xinhua_Spider.py`，修改 `__init__` 方法中的数据库连接信息：
-
-```python
-self.config = {
-    'host': 'localhost',      # 数据库地址
-    'user': 'root',           # 用户名
-    'passwd': 'root',         # 密码
-    'db': 'xinhua',           # 数据库名
-    'port': 3306              # 端口
-}
-```
-
-5. 运行爬虫
+修改数据库配置后运行：
 
 ```bash
 python Xinhua_Spider.py
 ```
 
-📊 数据字段说明
+---
 
-| 字段 | 说明 |
-|------|------|
-| 标题 | 新闻标题（作为唯一键，重复自动更新） |
-| 日期 | 新闻发布日期 |
-| 来源 | 新闻来源（如“新华网”） |
-| 内容 | 清洗后的正文内容（去除特殊空白字符） |
+ 📌 项目二：当当网图书爬虫
 
-⚙️ 核心逻辑说明
+目标：根据出版社列表，爬取当当网该出版社的图书信息（书名、价格、出版日期、评论数），存入 MySQL。
 
-请求伪装
-使用 `curl_cffi` 库模拟 `Chrome 120` 浏览器指纹，有效绕过部分反爬机制。
+ 核心实现
 
-数据去重
-采用 `字典` 结构存储数据，以**标题**为键，最新抓取的内容会自动覆盖旧数据，避免重复入库。
+- 动态参数构建：解析搜索页 HTML，动态获取 `input` 标签的 `name` 属性，拼接请求参数
+- 分页遍历：自动识别总页数，循环爬取每一页数据
+- 数据清洗：统一编码处理（GB2312 → UTF-8）
+- 批量入库：使用 PyMySQL 批量插入图书数据
 
-内容清洗
-使用正则表达式 `re.sub(r'[\u2002\u2003\u00A0\u202F\u205F\u3000]+', ' ', content)` 去除正文中的各类特殊空白字符。
+ 技术栈
 
-数据库 Upsert
-使用 `INSERT ... ON DUPLICATE KEY UPDATE` 语法，当标题重复时自动更新日期、来源和内容，不产生冗余数据。
+`Python 3.10+` | `requests` | `BeautifulSoup` | `PyMySQL` | `urllib.parse`
 
-📝 版本迭代记录
+ 快速开始
 
-| 版本 | 更新内容 |
-|------|----------|
-| v1.0 | 基础爬虫框架，使用 `set` 去重详情页 URL |
-| v2.0 | 改用 `dict` 存储数据，支持内容覆盖更新 |
+```bash
+cd Dangdang_Spider
+pip install requests beautifulsoup4 pymysql
+```
 
-⚠️ 注意事项
+准备出版社列表文件 `press.txt`（每行一个出版社名称）：
 
-1. **合规使用**：本爬虫仅用于学习和研究目的，请遵守新华网 `robots.txt` 规定，合理控制请求频率。
-2. **反爬升级**：如遇反爬策略升级，可能需要调整 `impersonate` 参数或增加代理轮换。
-3. **数据库编码**：建议使用 `utf8mb4` 编码，避免特殊字符（如 Emoji）入库报错。
+```
+清华大学出版社
+北京大学出版社
+人民邮电出版社
+```
 
-🤝 贡献
+创建数据库表：
 
-欢迎提交 Issue 或 Pull Request，共同完善本项目。
+```sql
+CREATE DATABASE dangdang DEFAULT CHARACTER SET utf8mb4;
+USE dangdang;
+CREATE TABLE dangd (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    number INT,
+    title VARCHAR(255),
+    price VARCHAR(50),
+    date VARCHAR(50),
+    comments VARCHAR(50)
+);
+```
 
-📄 License
+修改 `main()` 中的文件路径和数据库配置后运行：
 
-本项目仅供学习交流使用，请勿用于商业用途。
+```bash
+python Dangdang_Spider.py
+```
 
 ---
 
-作者：WuSh  
-GitHub：[WuSh-ua](https://github.com/WuSh-ua)
+ 🛠️ 技术栈总览
+
+| 类别 | 技术 |
+|------|------|
+| 语言 | Python 3.10+ |
+| 请求库 | requests, curl_cffi |
+| 解析库 | lxml, BeautifulSoup |
+| 数据库 | MySQL + PyMySQL |
+| 编码处理 | urllib.parse, re |
+| 调试 | traceback |
+
+---
+
+ 📁 目录结构
+
+```
+Spider_Project/
+├── Xinhua_Spider/
+│   ├── Xinhua_Spider.py
+│   └── README.md
+├── Dangdang_Spider/
+│   ├── Dangdang_Spider.py
+│   ├── press.txt
+│   └── README.md
+└── README.md                     总项目说明
+```
+
+---
+
+ ⚠️ 注意事项
+
+1. 合规使用：本合集所有爬虫仅供学习研究使用，请遵守各网站的 `robots.txt` 规定
+2. 请求频率：请合理控制请求间隔，避免对目标网站造成压力
+3. 编码问题：当当网搜索关键词需转为 `gb2312` 编码，注意区分
+4. 数据库配置：所有项目均需在代码中修改数据库连接信息
+
+---
+
+ 📝 更新日志
+
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| v1.0 | 2026-07 | 新增新华网教育新闻爬虫（curl_cffi 指纹伪装） |
+| v1.1 | 2026-07 | 新增当当网图书爬虫（分页抓取 + 批量入库） |
+
+---
+
+ 👤 作者
+
+WuSh · [GitHub](https://github.com/WuSh-uai)
+
+---
+
+ 📄 License
+
+本项目仅供学习交流使用，请勿用于商业用途。
