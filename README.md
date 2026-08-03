@@ -1,169 +1,197 @@
-🕷️ 爬虫项目合集
+ 项目一：校园消费数据平台 (campus_consumption)
 
-> 个人爬虫学习与实践项目集合，涵盖新闻资讯、电商图书等多源数据采集。
+```markdown
+ 校园消费数据展示与分析平台
 
----
+基于 Django + Streamlit 构建的校园消费数据管理与可视化系统。本项目为数据可视化课程实验，旨在通过Web应用和交互式仪表板，直观展示和分析学生的校园消费行为。
 
- 📁 项目列表
+ 功能特点
 
-| 项目 | 目标网站 | 技术栈 | 核心功能 |
-|------|---------|--------|---------|
-| [新华网教育新闻爬虫](./Xinhua_Spider/) | education.news.cn | Python, curl_cffi, lxml, PyMySQL | 新闻列表获取 → 详情页解析 → 数据去重入库 |
-| [当当网图书爬虫](./Dangdang_Spider/) | search.dangdang.com | Python, requests, BeautifulSoup, PyMySQL | 出版社检索 → 分页抓取 → 图书信息入库 |
-
----
-
- 📌 项目一：新华网教育新闻爬虫
-
-目标：采集新华网教育频道的新闻标题、日期、来源、正文内容，存入 MySQL。
-
- 核心实现
-
-- 反爬绕过：使用 `curl_cffi` 模拟 Chrome 120 浏览器指纹
-- 数据解析：基于 `lxml` 和 XPath 提取结构化数据
-- 数据清洗：正则表达式去除正文中的 Unicode 特殊空白符
-- 去重更新：字典存储 + `INSERT ... ON DUPLICATE KEY UPDATE` 实现增量更新
+   数据管理后台：基于 Django Admin 构建，提供完整的消费记录增删改查（CRUD）功能。
+   用户认证系统：安全的登录/登出机制，保护数据平台。
+   数据筛选与分页：在消费列表页，可按“消费地点”和“消费类型”进行筛选，并支持数据分页浏览。
+   交互式可视化大屏：集成 Streamlit，提供三个核心分析模块：
+       消费类型分析：使用 Matplotlib 展示不同消费类型的金额占比。
+       消费趋势分析：使用 Plotly 绘制交互式折线图，展示每日消费金额变化，并支持缩放查看。
+       地点-金额关联分析：使用 Altair 绘制散点图，分析不同消费地点的消费次数与金额关系。
+   响应式UI设计：前端采用 Bootstrap 5 框架，界面美观且适配移动设备。
 
  技术栈
 
-`Python 3.10+` | `curl_cffi` | `lxml` | `PyMySQL` | `re`
+   后端：Django 5.2, SQLite3
+   前端：Bootstrap 5, Font Awesome 6
+   可视化：Streamlit, Pandas, Matplotlib, Plotly, Altair
 
  快速开始
 
-```bash
-cd Xinhua_Spider
-pip install curl_cffi lxml pymysql
+ 环境准备
+确保已安装 Python 3.8 或更高版本。
+
+ 安装与运行
+
+1.  克隆项目
+    ```bash
+    git clone <你的仓库地址>
+    cd campus_consumption
+    ```
+
+2.  安装依赖
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  数据库迁移
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+4.  创建管理员用户 (用于登录后台)
+    ```bash
+    python manage.py createsuperuser
+    ```
+
+5.  运行Django开发服务器
+    ```bash
+    python manage.py runserver
+    ```
+    访问 `http://127.0.0.1:8000` 即可进入平台登录页。默认管理员账号为 `admin`，密码为 `123456`（或你创建时设置的密码）。
+
+6.  运行Streamlit可视化面板
+    在另一个终端中，进入项目根目录并运行：
+    ```bash
+    streamlit run dashboard.py
+    ```
+    访问 `http://localhost:8501` 即可查看交互式数据看板。
+
+ 项目结构
+
+```
+campus_consumption/
+├── campus_consumption/       Django 项目配置
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── consumption/              核心应用
+│   ├── migrations/
+│   ├── templates/            HTML模板文件
+│   ├── admin.py              后台管理配置
+│   ├── models.py             消费数据模型
+│   ├── views.py              视图逻辑
+│   └── urls.py               应用路由
+├── dashboard.py              Streamlit 可视化主程序
+├── manage.py                 Django 管理脚本
+└── db.sqlite3                SQLite 数据库文件
 ```
 
-执行前需创建数据库表：
+ 主要数据模型
 
-```sql
-CREATE DATABASE xinhua DEFAULT CHARACTER SET utf8mb4;
-USE xinhua;
-CREATE TABLE xinhua_news (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    标题 VARCHAR(255) UNIQUE,
-    日期 VARCHAR(50),
-    来源 VARCHAR(100),
-    内容 TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+Consumption (消费记录)
+   `student_id`: 学号
+   `name`: 姓名
+   `consumption_type`: 消费类型 (餐饮/文具/饮品/其他)
+   `amount`: 消费金额
+   `consumption_time`: 消费日期
+   `location`: 消费地点 (一食堂/二食堂/校园超市/奶茶店)
+作者 WuSh-uai
 
-修改数据库配置后运行：
+ 许可证
 
-```bash
-python Xinhua_Spider.py
+本项目仅供学习交流使用。
 ```
 
 ---
 
- 📌 项目二：当当网图书爬虫
+ 项目二：共享单车租用量预测 (BikeSharing)
 
-目标：根据出版社列表，爬取当当网该出版社的图书信息（书名、价格、出版日期、评论数），存入 MySQL。
+```markdown
+ 共享单车租用量预测与分析
 
- 核心实现
+基于 UCI Bike Sharing Dataset 的完整数据科学项目。项目包含从数据探索（EDA）、可视化分析到机器学习建模（线性回归、决策树、随机森林）以及无监督聚类（K-Means）的全流程。
 
-- 动态参数构建：解析搜索页 HTML，动态获取 `input` 标签的 `name` 属性，拼接请求参数
-- 分页遍历：自动识别总页数，循环爬取每一页数据
-- 数据清洗：统一编码处理（GB2312 → UTF-8）
-- 批量入库：使用 PyMySQL 批量插入图书数据
+ 项目目标
+
+   深入探索影响共享单车租用量的关键因素（季节、天气、温度等）。
+   构建并比较多种回归模型，预测每日的单车租用量。
+   使用聚类算法对不同的环境模式进行划分，发现高需求与低需求场景。
+
+ 核心功能
+
+ 探索性数据分析 (EDA)
+   目标变量分析：租用量的分布直方图与箱线图。
+   时间序列分析：2011-2012年租用量变化趋势。
+   环境因素分析：
+       不同季节、天气状况下的租用量箱线图。
+       温度与租用量的散点图。
+       所有特征的相关性热力图。
+   运行 `Data_Analysis.py` 即可生成全部6张可视化图表。
+
+ 机器学习建模
+   模型：线性回归、决策树回归、随机森林回归。
+   评估指标：均方误差（MSE）、均方根误差（RMSE）、决定系数（R²）。
+   结果：随机森林模型表现最优，R² 评分最高。
+   运行 `Model_Training.py` 完成模型训练、评估，并保存预测对比图。
+
+ 无监督聚类分析 (K-Means)
+   基于温度、湿度、风速、季节、天气等环境特征进行聚类。
+   使用肘部法则确定最佳聚类数（K=3）。
+   分析不同簇的环境特征和租用量差异。
+   运行 `K-Means.py` 生成肘部图、各簇租用量箱线图及聚类散点图。
 
  技术栈
 
-`Python 3.10+` | `requests` | `BeautifulSoup` | `PyMySQL` | `urllib.parse`
+   语言：Python 3.8+
+   数据处理：Pandas, NumPy
+   可视化：Matplotlib, Seaborn
+   机器学习：Scikit-learn (LinearRegression, DecisionTreeRegressor, RandomForestRegressor, KMeans)
 
  快速开始
 
-```bash
-cd Dangdang_Spider
-pip install requests beautifulsoup4 pymysql
-```
+1.  克隆项目
+    ```bash
+    git clone <你的仓库地址>
+    cd BikeSharing
+    ```
 
-准备出版社列表文件 `press.txt`（每行一个出版社名称）：
+2.  安装依赖
+    ```bash
+    pip install pandas numpy matplotlib seaborn scikit-learn
+    ```
 
-```
-清华大学出版社
-北京大学出版社
-人民邮电出版社
-```
+3.  运行数据分析 (EDA)
+    ```bash
+    python Data_Analysis.py
+    ```
+    将在当前目录生成 `图2-1` 至 `图2-6` 的所有分析图表。
 
-创建数据库表：
+4.  运行聚类分析
+    ```bash
+    python K-Means.py
+    ```
+    生成 `图4-2` 至 `图4-4` 的聚类结果图表，并在控制台输出各簇的分析信息。
 
-```sql
-CREATE DATABASE dangdang DEFAULT CHARACTER SET utf8mb4;
-USE dangdang;
-CREATE TABLE dangd (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    number INT,
-    title VARCHAR(255),
-    price VARCHAR(50),
-    date VARCHAR(50),
-    comments VARCHAR(50)
-);
-```
+5.  运行模型训练
+    ```bash
+    python Model_Training.py
+    ```
+    完成模型训练与评估，输出各模型的性能指标（MSE, RMSE, R²），并生成预测值与真实值的对比散点图。
 
-修改 `main()` 中的文件路径和数据库配置后运行：
+ 项目文件说明
 
-```bash
-python Dangdang_Spider.py
-```
+   `day.csv` / `hour.csv`: UCI 原始数据集。
+   `day_processed.csv`: 经过预处理（如添加季节/天气名称）后的日数据，供后续分析使用。
+   `Data_Analysis.py`: 完整的 EDA 脚本。
+   `Model_Training.py`: 机器学习模型训练、评估与对比脚本。
+   `K-Means.py`: K-Means 聚类分析脚本。
+   `model_results.csv`: 存储各模型性能指标的表格。
+   `图2-.png` 至 `图4-.png`: 分析过程中生成的全部可视化图表。
 
----
+ 关键结论
 
- 🛠️ 技术栈总览
+   温度是影响租用量的最重要因素之一，与租用量呈正相关。
+   季节影响显著，秋季租用量最高，春季最低。
+   在回归模型中，随机森林的预测效果最佳（R² ≈ 0.8+）。
+   通过K-Means聚类，可以将环境模式分为高温高需求、中温中需求和低温低需求三类典型场景。
 
-| 类别 | 技术 |
-|------|------|
-| 语言 | Python 3.10+ |
-| 请求库 | requests, curl_cffi |
-| 解析库 | lxml, BeautifulSoup |
-| 数据库 | MySQL + PyMySQL |
-| 编码处理 | urllib.parse, re |
-| 调试 | traceback |
-
----
-
- 📁 目录结构
-
-```
-Spider_Project/
-├── Xinhua_Spider/
-│   ├── Xinhua_Spider.py
-│   └── README.md
-├── Dangdang_Spider/
-│   ├── Dangdang_Spider.py
-│   ├── press.txt
-│   └── README.md
-└── README.md                     总项目说明
-```
-
----
-
- ⚠️ 注意事项
-
-1. 合规使用：本合集所有爬虫仅供学习研究使用，请遵守各网站的 `robots.txt` 规定
-2. 请求频率：请合理控制请求间隔，避免对目标网站造成压力
-3. 编码问题：当当网搜索关键词需转为 `gb2312` 编码，注意区分
-4. 数据库配置：所有项目均需在代码中修改数据库连接信息
-
----
-
- 📝 更新日志
-
-| 版本 | 日期 | 更新内容 |
-|------|------|----------|
-| v1.0 | 2026-07 | 新增新华网教育新闻爬虫（curl_cffi 指纹伪装） |
-| v1.1 | 2026-07 | 新增当当网图书爬虫（分页抓取 + 批量入库） |
-
----
-
- 👤 作者
-
-WuSh · [GitHub](https://github.com/WuSh-uai)
-
----
-
- 📄 License
-
-本项目仅供学习交流使用，请勿用于商业用途。
+作者 WuSh-uai
+本项目仅供学习交流使用。
